@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Financial Planner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0d0d0d;
+            color: white;
+        }
+
+        .section { padding: 30px 15px; text-align: center; }
+
+        .card {
+            background: #1a1a1a;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 6px 0;
+            border-radius: 8px;
+            border: none;
+            background: #2a2a2a;
+            color: white;
+        }
+
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #00c853, #00e676);
+            color: black;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        .row { display: flex; gap: 5px; }
+
+        .remove-btn {
+            width: auto;
+            background: #ff4444;
+            color: white;
+        }
+
+        .balance { font-weight: bold; }
+
+        .balance.positive { color: #00e676; }
+        .balance.negative { color: #ff5252; }
+
+        .positive { background: #1f7a1f; }
+        .negative { background: #a11f1f; }
+
+        #finalBox {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        #app { display: none; }
+    </style>
+</head>
+
+<body>
+
+<!-- LANDING -->
+<div id="landing" class="section">
+    <h1>💰 Financial Planner</h1>
+    <p>Plan your money. Build your future.</p>
+    <button onclick="enterApp()">Start Free</button>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+<div class="section">
+    <button onclick="goBack()">⬅ Back</button>
+</div>
+
+<div id="container"></div>
+
+<canvas id="chart"></canvas>
+
+<div class="card">
+    <h3 id="summary"></h3>
+    <p id="aiAdvice"></p>
+    <div id="finalBox">Final Leftover: R0</div>
+</div>
+
+</div>
+
+<script>
+const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+let chart;
+
+// NAV (🔥 FIXED — NO MORE app.html)
+function enterApp() {
+    document.getElementById("landing").style.display = "none";
+    document.getElementById("app").style.display = "block";
+}
+function goBack() {
+    document.getElementById("app").style.display = "none";
+    document.getElementById("landing").style.display = "block";
+}
+
+// UI
+function createMonth(month, i) {
+    return `
+    <div class="card">
+        <h3>${month}</h3>
+        <input placeholder="Income" id="income${i}" oninput="autoUpdate()">
+
+        <div id="savings${i}"></div>
+        <button onclick="addSavings(${i})">+ Savings</button>
+
+        <div id="expenses${i}"></div>
+        <button onclick="addExpense(${i})">+ Expense</button>
+
+        <p id="left${i}">Leftover: R0</p>
+        <p id="carry${i}" class="balance">Total Balance: R0</p>
+    </div>`;
+}
+
+document.getElementById("container").innerHTML =
+    months.map((m,i)=>createMonth(m,i)).join("");
+
+// ADD
+function addSavings(i, name="", amount="") {
+    let div = document.createElement("div");
+    div.className = "row";
+    div.innerHTML = `
+        <input value="${name}" placeholder="Savings name" oninput="autoUpdate()">
+        <input value="${amount}" placeholder="Amount" oninput="autoUpdate()">
+        <button class="remove-btn" onclick="removeItem(this)">❌</button>
+    `;
+    document.getElementById(`savings${i}`).appendChild(div);
+}
+
+function addExpense(i, name="", amount="") {
+    let div = document.createElement("div");
+    div.className = "row";
+    div.innerHTML = `
+        <input value="${name}" placeholder="Expense name" oninput="autoUpdate()">
+        <input value="${amount}" placeholder="Amount" oninput="autoUpdate()">
+        <button class="remove-btn" onclick="removeItem(this)">❌</button>
+    `;
+    document.getElementById(`expenses${i}`).appendChild(div);
+}
+
+// REMOVE
+function removeItem(btn) {
+    btn.parentElement.remove();
+    autoUpdate();
+}
+
+// AUTO
+function autoUpdate() {
+    calculate();
+}
+
+// CALCULATE (WITH RUNNING BALANCE + COLOR)
+function calculate() {
+    let runningBalance = 0;
+    let totalIncome=0, totalSavings=0, totalExpenses=0;
+
+    for (let i=0;i<12;i++){
+        let income = Number(document.getElementById(`income${i}`).value);
+
+        let savings = [...document.getElementById(`savings${i}`).children]
+            .reduce((s,item)=>s+Number(item.children[1].value),0);
+
+        let expenses = [...document.getElementById(`expenses${i}`).children]
+            .reduce((s,item)=>s+Number(item.children[1].value),0);
+
+        let leftover = income - savings - expenses;
+
+        document.getElementById(`left${i}`).innerText =
+            `Leftover: R${leftover}`;
+
+        runningBalance += leftover;
+
+        let el = document.getElementById(`carry${i}`);
+        el.innerText = `Total Balance: R${runningBalance}`;
+
+        el.classList.remove("positive","negative");
+        el.classList.add(runningBalance >= 0 ? "positive" : "negative");
+
+        totalIncome += income;
+        totalSavings += savings;
+        totalExpenses += expenses;
+    }
+
+    let totalLeftover = totalIncome - totalSavings - totalExpenses;
+
+    document.getElementById("summary").innerText =
+        `Income: R${totalIncome} | Savings: R${totalSavings} | Expenses: R${totalExpenses}`;
+
+    let advice = [];
+    if (totalSavings < totalIncome * 0.2) advice.push("Increase savings");
+    if (totalExpenses > totalIncome * 0.7) advice.push("Reduce spending");
+    if (totalLeftover > 0) advice.push("Invest surplus");
+
+    document.getElementById("aiAdvice").innerText = advice.join(" | ");
+
+    let box = document.getElementById("finalBox");
+    box.innerText = `Final Leftover: R${totalLeftover}`;
+    box.className = totalLeftover >= 0 ? "positive" : "negative";
+}
+
+setTimeout(calculate, 100);
+</script>
+
+</body>
+</html>
